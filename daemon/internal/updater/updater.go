@@ -31,8 +31,9 @@ type releaseInfo struct {
 }
 
 type releaseManifest struct {
-	Version   string `json:"version"`
-	Artifacts map[string]struct {
+	DaemonVersion    string `json:"daemon_version"`
+	ExtensionVersion string `json:"extension_version"`
+	Artifacts        map[string]struct {
 		SHA256 string `json:"sha256"`
 	} `json:"artifacts"`
 }
@@ -62,16 +63,16 @@ func updateOnce(currentVersion string) error {
 		return err
 	}
 	latest := strings.TrimPrefix(release.TagName, "v")
-	if latest == "" || latest == currentVersion {
-		return nil
-	}
 
 	manifest, err := fetchManifest()
 	if err != nil {
 		return fmt.Errorf("fetching release manifest: %w", err)
 	}
-	if manifest.Version != "" && manifest.Version != latest {
-		return fmt.Errorf("release tag %q does not match manifest version %q", latest, manifest.Version)
+	if manifest.DaemonVersion == "" {
+		return fmt.Errorf("release manifest has no daemon version")
+	}
+	if manifest.DaemonVersion == currentVersion {
+		return nil
 	}
 
 	assetName := fmt.Sprintf("focusd-%s-%s", runtime.GOOS, runtime.GOARCH)

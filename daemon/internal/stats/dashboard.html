@@ -346,6 +346,29 @@
                         <canvas id="pieChart"></canvas>
                     </div>
                 </div>
+
+                <div class="panel">
+                    <h3>Daemon Usage</h3>
+                    <div class="stats-grid">
+                        <div>
+                            <div class="stat-label">Version</div>
+                            <div class="stat-value" id="val-daemon-version">--</div>
+                        </div>
+                        <div>
+                            <div class="stat-label">Uptime</div>
+                            <div class="stat-value" id="val-daemon-uptime">--</div>
+                        </div>
+                        <div>
+                            <div class="stat-label">Memory</div>
+                            <div class="stat-value" id="val-daemon-memory">--</div>
+                        </div>
+                        <div>
+                            <div class="stat-label">Goroutines</div>
+                            <div class="stat-value" id="val-daemon-goroutines">--</div>
+                        </div>
+                    </div>
+                    <div style="color: var(--text-dim); margin-top: 16px;" id="val-daemon-platform">--</div>
+                </div>
             </div>
         </div>
 
@@ -411,7 +434,15 @@
             if (totalSeconds === 0 || isNaN(totalSeconds)) return "0d 0h";
             const days = Math.floor(totalSeconds / (3600 * 24));
             const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
-            return `${days}d ${hours}h`;
+            const minutes = Math.floor((totalSeconds % 3600) / 60);
+            return `${days}d ${hours}h ${minutes}m`;
+        }
+
+        function formatBytes(bytes) {
+            if (!bytes) return "0 B";
+            const units = ["B", "KB", "MB", "GB"];
+            const exponent = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+            return `${(bytes / (1024 ** exponent)).toFixed(exponent === 0 ? 0 : 1)} ${units[exponent]}`;
         }
         
         function formatTime(isoStr) {
@@ -432,11 +463,11 @@
                 const customRes = await fetch("/custom_blocklist");
                 const customRules = await customRes.json();
                 
-                // Fetch full blocklist to show how many domains are covered.
-                const blocklistRes = await fetch("/blocklist");
-                const blocklist = await blocklistRes.json();
+                // Fetch only the count; the full blocklist can contain nearly a million domains.
+                const blocklistCountRes = await fetch("/blocklist/count");
+                const blocklistCount = await blocklistCountRes.json();
 
-                renderOverview(stats, blocklist.domains?.length || 0);
+                renderOverview(stats, blocklistCount.count || 0);
                 renderLogs(stats.recent_events || []);
                 renderCustomRules(customRules || []);
                 
@@ -449,6 +480,12 @@
             document.getElementById('val-total').innerText = stats.total_events || 0;
             document.getElementById('val-streak').innerText = formatDuration(stats.streak_seconds);
             document.getElementById('val-blocklist').innerText = totalBlocklist.toLocaleString();
+            document.getElementById('val-daemon-version').innerText = stats.daemon_version || 'dev';
+            document.getElementById('val-daemon-uptime').innerText = formatDuration(stats.uptime_seconds);
+            document.getElementById('val-daemon-memory').innerText = formatBytes(stats.memory_alloc_bytes);
+            document.getElementById('val-daemon-goroutines').innerText = stats.goroutines ?? '--';
+            document.getElementById('val-daemon-platform').innerText =
+                `${stats.os || '--'} / ${stats.architecture || '--'} · system memory ${formatBytes(stats.memory_sys_bytes)}`;
 
             const daily = stats.daily_stats || {};
             const domains = stats.domain_stats || {};

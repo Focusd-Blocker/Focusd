@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sync"
 	"time"
 )
@@ -39,6 +40,7 @@ type EventLogEntry struct {
 }
 
 type State struct {
+	DaemonVersion   string          `json:"daemon_version"`
 	LastEventAt     time.Time       `json:"last_event_at"`
 	TotalEvents     int             `json:"total_events"`
 	LastHeartbeatAt time.Time       `json:"last_heartbeat_at"`
@@ -54,9 +56,10 @@ var (
 	mu    sync.Mutex
 	state State
 	path  string
+	start = time.Now()
 )
 
-func Init() error {
+func Init(daemonVersion string) error {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		return fmt.Errorf("resolving cache dir: %w", err)
@@ -70,9 +73,11 @@ func Init() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			state = State{
-				DailyStats:  make(map[string]int),
-				DomainStats: make(map[string]int),
+				DaemonVersion: daemonVersion,
+				DailyStats:    make(map[string]int),
+				DomainStats:   make(map[string]int),
 			}
+			saveLocked()
 			return nil
 		}
 		return fmt.Errorf("reading stats file: %w", err)
@@ -87,6 +92,10 @@ func Init() error {
 	}
 	if state.DomainStats == nil {
 		state.DomainStats = make(map[string]int)
+	}
+	if state.DaemonVersion != daemonVersion {
+		state.DaemonVersion = daemonVersion
+		saveLocked()
 	}
 
 	return nil
@@ -186,17 +195,28 @@ func HandleHeartbeat(w http.ResponseWriter, r *http.Request) {
 }
 
 type StatsResponse struct {
-	StreakSince     time.Time       `json:"streak_since"`
-	StreakSeconds   float64         `json:"streak_seconds"`
-	TotalEvents     int             `json:"total_events"`
-	LastHeartbeatAt time.Time       `json:"last_heartbeat_at"`
-	Gaps            []Gap           `json:"gaps"`
-	RecentEvents    []EventLogEntry `json:"recent_events"`
-	DailyStats      map[string]int  `json:"daily_stats"`
-	DomainStats     map[string]int  `json:"domain_stats"`
+	DaemonVersion    string          `json:"daemon_version"`
+	StartedAt        time.Time       `json:"started_at"`
+	UptimeSeconds    float64         `json:"uptime_seconds"`
+	Goroutines       int             `json:"goroutines"`
+	MemoryAllocBytes uint64          `json:"memory_alloc_bytes"`
+	MemorySysBytes   uint64          `json:"memory_sys_bytes"`
+	OS               string          `json:"os"`
+	Architecture     string          `json:"architecture"`
+	StreakSince      time.Time       `json:"streak_since"`
+	StreakSeconds    float64         `json:"streak_seconds"`
+	TotalEvents      int             `json:"total_events"`
+	LastHeartbeatAt  time.Time       `json:"last_heartbeat_at"`
+	Gaps             []Gap           `json:"gaps"`
+	RecentEvents     []EventLogEntry `json:"recent_events"`
+	DailyStats       map[string]int  `json:"daily_stats"`
+	DomainStats      map[string]int  `json:"domain_stats"`
 }
 
 func HandleStats(w http.ResponseWriter, r *http.Request) {
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
 	mu.Lock()
 
 	// Create a copy of DailyStats to avoid race conditions during JSON marshalling
@@ -211,13 +231,21 @@ func HandleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := StatsResponse{
-		StreakSince:     state.LastEventAt,
-		TotalEvents:     state.TotalEvents,
-		LastHeartbeatAt: state.LastHeartbeatAt,
-		Gaps:            state.Gaps,
-		RecentEvents:    state.RecentEvents,
-		DailyStats:      dailyStatsCopy,
-		DomainStats:     domainStatsCopy,
+		DaemonVersion:    state.DaemonVersion,
+		StartedAt:        start,
+		UptimeSeconds:    time.Since(start).Seconds(),
+		Goroutines:       runtime.NumGoroutine(),
+		MemoryAllocBytes: memStats.Alloc,
+		MemorySysBytes:   memStats.Sys,
+		OS:               runtime.GOOS,
+		Architecture:     runtime.GOARCH,
+		StreakSince:      state.LastEventAt,
+		TotalEvents:      state.TotalEvents,
+		LastHeartbeatAt:  state.LastHeartbeatAt,
+		Gaps:             state.Gaps,
+		RecentEvents:     state.RecentEvents,
+		DailyStats:       dailyStatsCopy,
+		DomainStats:      domainStatsCopy,
 	}
 	mu.Unlock()
 

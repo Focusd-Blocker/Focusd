@@ -14,7 +14,9 @@ jobs:
     name: Validate release version
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      extension_version: ${{ steps.version.outputs.extension_version }}
+      daemon_version: ${{ steps.version.outputs.daemon_version }}
+      release_tag: ${{ steps.version.outputs.release_tag }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -24,21 +26,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          version="$(node -p "require('./extension/package.json').version")"
-          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "extension/package.json has an invalid version: $version" >&2
+          extension_version="$(node -p "require('./extension/package.json').version")"
+          daemon_version="$(tr -d '[:space:]' < daemon/VERSION)"
+          if [[ ! "$extension_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "extension/package.json has an invalid version: $extension_version" >&2
+            exit 1
+          fi
+          if [[ ! "$daemon_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
+            echo "daemon/VERSION has an invalid version: $daemon_version" >&2
             exit 1
           fi
 
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             tag_version="${GITHUB_REF_NAME#v}"
-            if [[ "$tag_version" != "$version" ]]; then
-              echo "Tag v$tag_version does not match extension/package.json version $version" >&2
+            if [[ "$tag_version" != "$extension_version" ]]; then
+              echo "Tag v$tag_version does not match extension/package.json version $extension_version" >&2
               exit 1
             fi
+            release_tag="v${extension_version}"
+          else
+            release_tag="daemon-v${daemon_version}"
           fi
 
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "extension_version=$extension_version" >> "$GITHUB_OUTPUT"
+          echo "daemon_version=$daemon_version" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
 
   extension:
     name: Build and sign Firefox extension
@@ -131,7 +143,7 @@ jobs:
           set -euo pipefail
           mkdir -p ../dist
           go build -trimpath \
-            -ldflags="-s -w${{ matrix.gui }} -X main.version=${{ needs.version.outputs.version }}" \
+            -ldflags="-s -w${{ matrix.gui }} -X main.daemonVersion=${{ needs.version.outputs.daemon_version }}" \
             -o "../dist/focusd-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.suffix }}" .
 
       - name: Upload daemon artifact
@@ -155,7 +167,8 @@ jobs:
 
       - name: Generate checksums and release manifest
         env:
-          VERSION: ${{ needs.version.outputs.version }}
+          EXTENSION_VERSION: ${{ needs.version.outputs.extension_version }}
+          DAEMON_VERSION: ${{ needs.version.outputs.daemon_version }}
         run: |
           set -euo pipefail
           cd dist
@@ -175,7 +188,8 @@ jobs:
               }
 
           manifest = {
-              "version": os.environ["VERSION"],
+              "extension_version": os.environ["EXTENSION_VERSION"],
+              "daemon_version": os.environ["DAEMON_VERSION"],
               "artifacts": files,
           }
           Path("release-manifest.json").write_text(
@@ -187,10 +201,12 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.version.outputs.version }}
+          RELEASE_TAG: ${{ needs.version.outputs.release_tag }}
+          EXTENSION_VERSION: ${{ needs.version.outputs.extension_version }}
+          DAEMON_VERSION: ${{ needs.version.outputs.daemon_version }}
         run: |
           set -euo pipefail
-          gh release create "v${VERSION}" dist/* \
+          gh release create "$RELEASE_TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
-            --title "Focusd v${VERSION}" \
+            --title "Focusd extension v${EXTENSION_VERSION}, daemon v${DAEMON_VERSION}" \
             --generate-notes

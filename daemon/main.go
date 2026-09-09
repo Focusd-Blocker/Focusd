@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	_ "embed"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -15,9 +17,19 @@ import (
 	"focusd/internal/updater"
 )
 
-var version = "dev"
+//go:embed VERSION
+var versionFile string
+
+var daemonVersion = "dev"
+
+func init() {
+	if daemonVersion == "dev" {
+		daemonVersion = strings.TrimSpace(versionFile)
+	}
+}
 
 func main() {
+	log.Println("Starting Focusd daemon", daemonVersion)
 	if len(os.Args) > 1 && os.Args[1] == "--apply-update" {
 		if err := updater.ApplyPendingUpdate(os.Args[2:]); err != nil {
 			log.Fatal("update: applying update:", err)
@@ -32,7 +44,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	if err := stats.Init(); err != nil {
+	if err := stats.Init(daemonVersion); err != nil {
 		log.Fatal("failed to init stats:", err)
 	}
 
@@ -42,11 +54,12 @@ func main() {
 	log.Println("Starting extension auto-update loop")
 	go extension.StartUpdateLoop(ctx)
 	log.Println("Starting daemon auto-update loop")
-	go updater.StartUpdateLoop(ctx, version)
+	go updater.StartUpdateLoop(ctx, daemonVersion)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", stats.HandleDashboard)
 	mux.HandleFunc("GET /blocklist", blocklist.HandleBlocklist)
+	mux.HandleFunc("GET /blocklist/count", blocklist.HandleBlocklistCount)
 	mux.HandleFunc("GET /stream", blocklist.HandleStream)
 	mux.HandleFunc("GET /custom_blocklist", blocklist.HandleCustomBlocklist)
 	mux.HandleFunc("POST /custom_blocklist", blocklist.HandleCustomBlocklist)

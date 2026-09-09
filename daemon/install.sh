@@ -12,7 +12,10 @@ UNIT_NAME="focusd.service"
 CACHE_DIR="${HOME}/.cache/focusd"
 
 echo "==> Building ${BIN_NAME}"
-CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "${BIN_NAME}" .
+DAEMON_VERSION="$(tr -d '[:space:]' < VERSION)"
+CGO_ENABLED=0 go build -trimpath \
+    -ldflags="-s -w -X main.daemonVersion=${DAEMON_VERSION}" \
+    -o "${BIN_NAME}" .
 
 echo "==> Installing binary to ${INSTALL_DIR}"
 mkdir -p "${INSTALL_DIR}"
@@ -137,7 +140,7 @@ NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=%h/.cache/focusd
+ReadWritePaths=%h/.cache/focusd %h/.local/bin
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectControlGroups=yes

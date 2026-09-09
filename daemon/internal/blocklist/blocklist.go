@@ -148,6 +148,29 @@ func loadDomainsFromDisk(path string) ([]string, error) {
 	return domains, scanner.Err()
 }
 
+func countDomainsOnDisk(path string) (int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("opening file: %w", err)
+	}
+	defer f.Close()
+
+	count := 0
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		if strings.TrimSpace(scanner.Text()) != "" {
+			count++
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return 0, fmt.Errorf("counting domains: %w", err)
+	}
+	return count, nil
+}
+
 func migrateOldFormatIfNeeded() {
 	old := hostsFilePathOld()
 	new := hostsFilePath()
@@ -339,6 +362,23 @@ func HandleBlocklist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Write([]byte(`]}`))
+}
+
+func HandleBlocklistCount(w http.ResponseWriter, r *http.Request) {
+	domains, err := countDomainsOnDisk(hostsFilePath())
+	if err != nil {
+		http.Error(w, "failed to count blocklist", http.StatusInternalServerError)
+		return
+	}
+
+	custom, err := getCustomBlockedList()
+	if err != nil {
+		http.Error(w, "failed to load custom blocklist", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprintf(w, `{"count":%d}`, domains+len(custom))
 }
 
 var (
