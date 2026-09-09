@@ -39,7 +39,11 @@ function Require-Command($Name, $InstallHint) {
 }
 
 Require-Command "go" "Install Go from https://go.dev/dl/ and run this installer again."
-Require-Command "curl.exe" "Install Windows curl or use a current Windows 10/11 installation."
+
+Write-Host "==> Stopping any existing daemon"
+Get-Process focusd -ErrorAction SilentlyContinue |
+    Stop-Process -Force -ErrorAction SilentlyContinue
+Start-Sleep -Milliseconds 300
 
 Push-Location $ScriptRoot
 try {
@@ -59,10 +63,11 @@ try {
     New-Item -ItemType Directory -Force -Path $EXTENSION_DIR | Out-Null
     $download = "https://github.com/Focusd-Blocker/Focusd/releases/latest/download/focusd.xpi"
     $tempXpi = "$XPI_PATH.tmp"
-    curl.exe -fL --retry 3 --retry-delay 2 -o $tempXpi $download
-    if ($LASTEXITCODE -ne 0) {
+    try {
+        Invoke-WebRequest -Uri $download -OutFile $tempXpi -UseBasicParsing
+    } catch {
         Remove-Item -LiteralPath $tempXpi -Force -ErrorAction SilentlyContinue
-        throw "Extension download failed."
+        throw "Extension download failed: $($_.Exception.Message)"
     }
     Move-Item -LiteralPath $tempXpi -Destination $XPI_PATH -Force
 
@@ -84,7 +89,7 @@ try {
     Write-Host "==> Deploying Firefox-family policies"
     $policyTargets = @(
         "$env:ProgramFiles\Mozilla Firefox\distribution",
-        "$env:ProgramFiles(x86)\Mozilla Firefox\distribution",
+        "${env:ProgramFiles(x86)}\Mozilla Firefox\distribution",
         "$env:LOCALAPPDATA\Mozilla Firefox\distribution",
         "$env:ProgramFiles\LibreWolf\distribution",
         "$env:LOCALAPPDATA\LibreWolf\distribution",
@@ -123,8 +128,6 @@ try {
     $shortcut.Save()
 
     Write-Host "==> Starting daemon"
-    Get-Process focusd -ErrorAction SilentlyContinue |
-        Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Process -FilePath (Join-Path $INSTALL_DIR $BIN_NAME) -WorkingDirectory $INSTALL_DIR
 
     Start-Sleep -Seconds 1
