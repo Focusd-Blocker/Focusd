@@ -69,7 +69,7 @@ jobs:
           test -n "$FIREFOX_API_KEY"
           test -n "$FIREFOX_API_SECRET"
           bun run build:firefox
-          web-ext sign \
+          bunx --no-install web-ext sign \
             --source-dir .output/firefox-mv2 \
             --channel unlisted \
             --api-key "$FIREFOX_API_KEY" \
