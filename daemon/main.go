@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -11,9 +12,23 @@ import (
 	"focusd/internal/blocklist"
 	"focusd/internal/extension"
 	"focusd/internal/stats"
+	"focusd/internal/updater"
 )
 
+var version = "dev"
+
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--apply-update" {
+		if err := updater.ApplyPendingUpdate(os.Args[2:]); err != nil {
+			log.Fatal("update: applying update:", err)
+		}
+		return
+	}
+	if len(os.Args) > 2 && os.Args[1] == "--cleanup-updater" {
+		_ = os.Remove(os.Args[2])
+		os.Args = os.Args[2:]
+	}
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -26,6 +41,8 @@ func main() {
 
 	log.Println("Starting extension auto-update loop")
 	go extension.StartUpdateLoop(ctx)
+	log.Println("Starting daemon auto-update loop")
+	go updater.StartUpdateLoop(ctx, version)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", stats.HandleDashboard)

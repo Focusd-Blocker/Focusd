@@ -130,7 +130,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p ../dist
-          go build -trimpath -ldflags="-s -w${{ matrix.gui }}" \
+          go build -trimpath \
+            -ldflags="-s -w${{ matrix.gui }} -X main.version=${{ needs.version.outputs.version }}" \
             -o "../dist/focusd-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.suffix }}" .
 
       - name: Upload daemon artifact
