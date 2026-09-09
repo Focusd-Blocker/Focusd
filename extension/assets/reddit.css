@@ -1,0 +1,19 @@
+shreddit-post[nsfw],
+shreddit-blurred-container[reason="nsfw"],
+.thing.over18,
+
+[data-testid="search-post-unit"]:has(.text-category-nsfw),
+[data-testid="search-post-unit"]:has(svg[icon-name*="nsfw"]),
+
+[data-id="search-media-post-unit"]:has(.text-category-nsfw),
+[data-id="search-media-post-unit"]:has(svg[icon-name*="nsfw"]),
+
+[data-testid="search-community-unit"]:has(.text-category-nsfw),
+[data-testid="search-community-unit"]:has(svg[icon-name*="nsfw"]),
+[data-testid="search-user-unit"]:has(.text-category-nsfw),
+[data-testid="search-user-unit"]:has(svg[icon-name*="nsfw"]),
+
+div:has(> faceplate-hovercard):has(> [data-testid="search-warnings"] .text-category-nsfw),
+div:has(> faceplate-hovercard):has(> [data-testid="search-warnings"] svg[icon-name*="nsfw"]) {
+    display: none !important;
+}

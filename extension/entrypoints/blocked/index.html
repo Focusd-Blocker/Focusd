@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hold on</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #14181a;
+            --text: #eae6dd;
+            --text-dim: #838d90;
+            --accent: #c98a4b;
+            --accent-ink: #1c1712;
+            --ring: #6f9481;
+            --ring-glow: rgba(111, 148, 129, 0.28);
+            --border: #2a3033;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            text-align: center;
+            padding: 24px;
+        }
+
+        #phase-1 {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            transition: opacity 0.6s ease;
+        }
+
+        h1 {
+            font-family: 'Fraunces', serif;
+            font-weight: 600;
+            font-size: clamp(2rem, 6vw, 2.75rem);
+            color: var(--text);
+            margin-bottom: 12px;
+        }
+
+        .subtitle {
+            font-size: 1rem;
+            color: var(--text-dim);
+            max-width: 320px;
+            line-height: 1.5;
+            margin-bottom: 56px;
+        }
+
+        .breathing-container {
+            position: relative;
+            width: 180px;
+            height: 180px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            border: 1px solid var(--border);
+            background: radial-gradient(circle, var(--ring-glow) 0%, transparent 70%);
+            animation: breathe 8s infinite ease-in-out;
+        }
+
+        #breathe-text {
+            position: relative;
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--ring);
+            letter-spacing: 0.02em;
+        }
+
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.35); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .breathing-container { animation: none; }
+        }
+
+        #timer {
+            margin-top: 40px;
+            font-size: 0.95rem;
+            color: var(--text-dim);
+            font-variant-numeric: tabular-nums;
+        }
+
+        #countdown {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        #phase-2 {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            max-width: 440px;
+        }
+
+        #quote {
+            font-family: 'Fraunces', serif;
+            font-style: italic;
+            font-weight: 500;
+            font-size: clamp(1.25rem, 4vw, 1.5rem);
+            line-height: 1.55;
+            color: var(--text);
+            margin-bottom: 44px;
+            text-align: left;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 12px;
+            flex-direction: column;
+            width: 100%;
+        }
+
+        button {
+            padding: 16px 28px;
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.15s ease, border-color 0.15s ease;
+        }
+
+        button:focus-visible {
+            outline: 2px solid var(--ring);
+            outline-offset: 2px;
+        }
+
+        .btn-safe {
+            background-color: var(--accent);
+            color: var(--accent-ink);
+            border: 1px solid var(--accent);
+        }
+
+        .btn-safe:hover {
+            background-color: #d99a5d;
+        }
+
+        .btn-secondary {
+            background-color: transparent;
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--text-dim);
+        }
+    </style>
+</head>
+<body>
+
+    <div id="phase-1">
+        <h1>Hold on.</h1>
+        <p class="subtitle">Give it a few seconds before you decide.</p>
+
+        <div class="breathing-container">
+            <span id="breathe-text">Breathe In</span>
+        </div>
+
+        <p id="timer">Wait <span id="countdown">15</span> seconds...</p>
+    </div>
+
+    <div id="phase-2">
+        <p id="quote">You set this block for a reason. Is what you want right now worth more than what you're actually trying to get done?</p>
+
+        <div class="btn-container">
+            <button id="btn-close" class="btn-safe">Close tab</button>
+            <button id="btn-distract" class="btn-secondary">Give me something else to do</button>
+        </div>
+    </div>
+
+    <!-- WXT requires type="module" to bundle correctly -->
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

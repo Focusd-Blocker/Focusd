@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Focusd Stats</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #14181a;
+            --text: #eae6dd;
+            --text-dim: #838d90;
+            --accent: #c98a4b;
+            --accent-ink: #1c1712;
+            --ring: #6f9481;
+            --ring-glow: rgba(111, 148, 129, 0.28);
+            --border: #2a3033;
+            --border-light: #3a4145;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            width: 320px;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+        header {
+            text-align: center;
+        }
+        h1 {
+            font-family: 'Fraunces', serif;
+            font-weight: 600;
+            font-size: 1.75rem;
+            color: var(--text);
+            margin-bottom: 6px;
+        }
+        .status {
+            font-size: 0.85rem;
+            color: var(--ring);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .status.offline {
+            color: #ff4757;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--ring);
+            border-radius: 50%;
+            box-shadow: 0 0 0 2px var(--ring-glow);
+        }
+        .status.offline .status-dot {
+            background-color: #ff4757;
+            box-shadow: 0 0 0 2px rgba(255, 71, 87, 0.28);
+            animation: none;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .stat-card {
+            background-color: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px 12px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            font-weight: 500;
+        }
+        .stat-value {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--accent);
+            font-variant-numeric: tabular-nums;
+        }
+        .recent-events {
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .recent-events h2 {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            margin-bottom: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .event-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            max-height: 140px;
+            overflow-y: auto;
+        }
+        
+        /* Custom Scrollbar for event-list */
+        .event-list::-webkit-scrollbar {
+            width: 4px;
+        }
+        .event-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .event-list::-webkit-scrollbar-thumb {
+            background: var(--border-light);
+            border-radius: 4px;
+        }
+
+        .event-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.9rem;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-light);
+        }
+        .event-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .event-domain {
+            color: var(--text);
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 180px;
+        }
+        .empty-state {
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            text-align: center;
+            font-style: italic;
+        }
+        .pulse {
+            animation: pulse 2.5s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 var(--ring-glow); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(111, 148, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(111, 148, 129, 0); }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Focusd</h1>
+        <div class="status" id="status-indicator">
+            <div class="status-dot pulse" id="status-dot"></div>
+            <span id="status-text">Daemon Connected</span>
+        </div>
+    </header>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Current Streak</div>
+            <div class="stat-value" id="streak-time">--</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Blocked Events</div>
+            <div class="stat-value" id="total-events">--</div>
+        </div>
+    </div>
+
+    <div class="recent-events">
+        <h2>Recent Blocks</h2>
+        <ul class="event-list" id="event-list">
+            <li class="empty-state">Loading...</li>
+        </ul>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+</body>
+</html>

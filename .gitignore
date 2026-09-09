@@ -1,0 +1,29 @@
+# Build and release output
+/dist/
+/release/
+/archive.zip
+/daemon/focusd
+/daemon/focusd.exe
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Local secrets and environment files
+**/.env
+**/.env.*
+!.env.example
+
+# Local runtime data
+**/stats.json
+**/stats-*.json
+**/logs/
+
+# Dependency and generated directories
+**/node_modules/
+**/.output/
+**/.wxt/
+**/web-ext-artifacts/

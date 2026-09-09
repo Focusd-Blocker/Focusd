@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Focusd Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,500;0,600;1,500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #14181a;
+            --sidebar-bg: #111415;
+            --card-bg: #1a1e21;
+            --text: #eae6dd;
+            --text-dim: #838d90;
+            --accent: #c98a4b;
+            --danger: #ff4757;
+            --ring: #6f9481;
+            --ring-glow: rgba(111, 148, 129, 0.28);
+            --border: #2a3033;
+            --border-light: #3a4145;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'IBM Plex Sans', system-ui, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .sidebar h1 {
+            font-family: 'Fraunces', serif;
+            color: var(--text);
+            font-size: 2rem;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .nav-item {
+            padding: 12px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-dim);
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        .nav-item:hover {
+            background-color: var(--border);
+            color: var(--text);
+        }
+        .nav-item.active {
+            background-color: var(--accent);
+            color: #1c1712;
+            font-weight: 600;
+        }
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            padding: 40px;
+            overflow-y: auto;
+        }
+        .tab-content {
+            display: none;
+            flex-direction: column;
+            gap: 30px;
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .tab-content.active {
+            display: flex;
+        }
+        h2 {
+            font-family: 'Fraunces', serif;
+            font-weight: 600;
+            font-size: 1.8rem;
+            margin-bottom: 10px;
+        }
+        
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+        }
+        .stat-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 600;
+            color: var(--accent);
+        }
+        
+        /* Graphs */
+        .graph-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 900px) {
+            .graph-row { grid-template-columns: 1fr; }
+        }
+        .panel {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+        .panel h3 {
+            font-size: 1.1rem;
+            margin-bottom: 16px;
+            color: var(--text);
+        }
+        
+        /* Heatmap */
+        .heatmap-container {
+            display: flex;
+            gap: 4px;
+            overflow-x: auto;
+            padding-bottom: 10px;
+        }
+        .heatmap-col {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .heatmap-cell {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            background-color: #2a3033;
+            position: relative;
+        }
+        .heatmap-cell[data-count="1"] { background-color: rgba(201, 138, 75, 0.25); }
+        .heatmap-cell[data-count="2"] { background-color: rgba(201, 138, 75, 0.5); }
+        .heatmap-cell[data-count="3"] { background-color: rgba(201, 138, 75, 0.75); }
+        .heatmap-cell[data-count="4"] { background-color: rgba(201, 138, 75, 1); }
+        
+        /* Tooltip */
+        .tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #111415;
+            color: #eae6dd;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+            z-index: 10;
+            margin-bottom: 5px;
+        }
+        .heatmap-cell:hover .tooltip { opacity: 1; }
+
+        /* Tables & Lists */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            text-align: left;
+        }
+        .data-table th, .data-table td {
+            padding: 12px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .data-table th {
+            color: var(--text-dim);
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        .data-table td {
+            font-size: 0.95rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .data-table .domain-cell {
+            max-width: 0;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .data-table .source-cell {
+            width: 220px;
+        }
+        .event-source {
+            display: inline-block;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            vertical-align: bottom;
+            white-space: nowrap;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        .badge-blocklist {
+            background-color: rgba(255, 71, 87, 0.15);
+            color: var(--danger);
+            border: 1px solid rgba(255, 71, 87, 0.3);
+        }
+        .badge-heuristic {
+            background-color: rgba(201, 138, 75, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(201, 138, 75, 0.3);
+        }
+        .badge-reddit {
+            background-color: rgba(111, 148, 129, 0.15);
+            color: var(--ring);
+            border: 1px solid rgba(111, 148, 129, 0.3);
+        }
+        
+        /* Inputs & Buttons */
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        input[type="text"] {
+            flex: 1;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 1rem;
+        }
+        button {
+            background: var(--accent);
+            color: #1c1712;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        button:hover { opacity: 0.9; }
+        button.danger {
+            background: transparent;
+            border: 1px solid var(--danger);
+            color: var(--danger);
+            padding: 6px 12px;
+            font-size: 0.85rem;
+        }
+        button.danger:hover {
+            background: var(--danger);
+            color: #fff;
+        }
+        
+        .status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background-color: var(--ring);
+            border-radius: 50%;
+            box-shadow: 0 0 0 2px var(--ring-glow);
+            animation: pulse 2.5s infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 var(--ring-glow); }
+            70% { transform: scale(1); box-shadow: 0 0 0 6px rgba(111, 148, 129, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(111, 148, 129, 0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h1>Focusd</h1>
+        <div style="font-size: 0.85rem; color: var(--ring); text-align: center; margin-bottom: 20px;">
+            <span class="status-dot"></span>Daemon Active
+        </div>
+        <div class="nav-item active" data-tab="overview">Overview</div>
+        <div class="nav-item" data-tab="live-logs">Live Logs</div>
+        <div class="nav-item" data-tab="custom-rules">Custom Rules</div>
+    </div>
+
+    <div class="main-content">
+        <!-- OVERVIEW TAB -->
+        <div id="overview" class="tab-content active">
+            <h2>Overview</h2>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Blocks</div>
+                    <div class="stat-value" id="val-total">0</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Current Streak</div>
+                    <div class="stat-value" id="val-streak">--</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Domains on Blocklist</div>
+                    <div class="stat-value" id="val-blocklist">--</div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>Activity Heatmap (Last 90 Days)</h3>
+                <div class="heatmap-container" id="heatmap"></div>
+            </div>
+
+            <div class="graph-row">
+                <div class="panel">
+                    <h3>Blocks (Last 14 Days)</h3>
+                    <div style="position: relative; height: 250px; width: 100%;">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+                <div class="panel">
+                    <h3>Top Domains</h3>
+                    <div style="position: relative; height: 250px; width: 100%;">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- LIVE LOGS TAB -->
+        <div id="live-logs" class="tab-content">
+            <h2>Live Logs</h2>
+            <div class="panel">
+                <table class="data-table" style="table-layout: fixed; width: 100%;">
+                    <thead>
+                        <tr>
+                            <th style="width: 150px;">Time</th>
+                            <th>Domain / Host</th>
+                            <th style="width: 250px;">Trigger Event</th>
+                        </tr>
+                    </thead>
+                    <tbody id="logs-body">
+                        <!-- Logs injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CUSTOM RULES TAB -->
+        <div id="custom-rules" class="tab-content">
+            <h2>Custom Rules</h2>
+            <p style="color: var(--text-dim); margin-bottom: 20px;">Add specific domains to always block.</p>
+            
+            <div class="input-group">
+                <input type="text" id="custom-domain-input" placeholder="e.g. example.com" onkeypress="if(event.key === 'Enter') addCustomDomain()">
+                <button onclick="addCustomDomain()">Add Domain</button>
+            </div>
+            
+            <div class="panel">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Domain</th>
+                            <th style="text-align: right;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="custom-rules-body">
+                        <!-- Rules injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Navigation ---
+        document.querySelectorAll('.nav-item').forEach(el => {
+            el.addEventListener('click', (e) => {
+                document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+                
+                e.target.classList.add('active');
+                document.getElementById(e.target.getAttribute('data-tab')).classList.add('active');
+            });
+        });
+
+        // --- Formatting ---
+        function formatDuration(totalSeconds) {
+            if (totalSeconds === 0 || isNaN(totalSeconds)) return "0d 0h";
+            const days = Math.floor(totalSeconds / (3600 * 24));
+            const hours = Math.floor((totalSeconds % (3600 * 24)) / 3600);
+            return `${days}d ${hours}h`;
+        }
+        
+        function formatTime(isoStr) {
+            return new Date(isoStr).toLocaleTimeString();
+        }
+
+        let barChartInstance = null;
+        let pieChartInstance = null;
+
+        // --- Data Fetching & Rendering ---
+        async function fetchDashboardData() {
+            try {
+                // Fetch stats
+                const statsRes = await fetch("/stats");
+                const stats = await statsRes.json();
+                
+                // Fetch custom rules
+                const customRes = await fetch("/custom_blocklist");
+                const customRules = await customRes.json();
+                
+                // Fetch full blocklist to show how many domains are covered.
+                const blocklistRes = await fetch("/blocklist");
+                const blocklist = await blocklistRes.json();
+
+                renderOverview(stats, blocklist.domains?.length || 0);
+                renderLogs(stats.recent_events || []);
+                renderCustomRules(customRules || []);
+                
+            } catch (err) {
+                console.error("Fetch failed", err);
+            }
+        }
+
+        function renderOverview(stats, totalBlocklist) {
+            document.getElementById('val-total').innerText = stats.total_events || 0;
+            document.getElementById('val-streak').innerText = formatDuration(stats.streak_seconds);
+            document.getElementById('val-blocklist').innerText = totalBlocklist.toLocaleString();
+
+            const daily = stats.daily_stats || {};
+            const domains = stats.domain_stats || {};
+
+            // 1. Heatmap
+            const heatmapEl = document.getElementById('heatmap');
+            heatmapEl.innerHTML = '';
+            const today = new Date();
+            today.setHours(0,0,0,0);
+            
+            // Generate 13 weeks of columns
+            for (let w = 12; w >= 0; w--) {
+                const col = document.createElement('div');
+                col.className = 'heatmap-col';
+                for (let d = 6; d >= 0; d--) {
+                    const date = new Date(today);
+                    date.setDate(date.getDate() - (w * 7 + d));
+                    const dateStr = date.toISOString().split('T')[0];
+                    const count = daily[dateStr] || 0;
+                    
+                    let level = 0;
+                    if (count > 0) level = 1;
+                    if (count > 5) level = 2;
+                    if (count > 15) level = 3;
+                    if (count > 30) level = 4;
+                    
+                    const cell = document.createElement('div');
+                    cell.className = 'heatmap-cell';
+                    cell.setAttribute('data-count', level);
+                    cell.innerHTML = `<div class="tooltip">${dateStr}: ${count} blocks</div>`;
+                    col.appendChild(cell);
+                }
+                heatmapEl.appendChild(col);
+            }
+
+            // 2. Bar Chart (14 days)
+            const labels14 = [];
+            const data14 = [];
+            for (let i = 13; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(d.getDate() - i);
+                const dateStr = d.toISOString().split('T')[0];
+                labels14.push(d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+                data14.push(daily[dateStr] || 0);
+            }
+
+            if (barChartInstance) {
+                barChartInstance.data.labels = labels14;
+                barChartInstance.data.datasets[0].data = data14;
+                barChartInstance.update();
+            } else {
+                const ctxBar = document.getElementById('barChart').getContext('2d');
+                barChartInstance = new Chart(ctxBar, {
+                    type: 'bar',
+                    data: {
+                        labels: labels14,
+                        datasets: [{
+                            label: 'Blocks',
+                            data: data14,
+                            backgroundColor: '#c98a4b',
+                            borderRadius: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: {
+                            y: { grid: { color: '#2a3033' }, ticks: { color: '#838d90', stepSize: 1 } },
+                            x: { grid: { display: false }, ticks: { color: '#838d90' } }
+                        }
+                    }
+                });
+            }
+
+            // 3. Pie Chart (Top 5 Domains)
+            const sortedDomains = Object.entries(domains).sort((a,b) => b[1] - a[1]).slice(0, 5);
+            const pieLabels = sortedDomains.map(d => d[0]);
+            const pieData = sortedDomains.map(d => d[1]);
+            
+            if (pieChartInstance) {
+                pieChartInstance.data.labels = pieLabels;
+                pieChartInstance.data.datasets[0].data = pieData;
+                pieChartInstance.update();
+            } else {
+                const ctxPie = document.getElementById('pieChart').getContext('2d');
+                pieChartInstance = new Chart(ctxPie, {
+                    type: 'doughnut',
+                    data: {
+                        labels: pieLabels,
+                        datasets: [{
+                            data: pieData,
+                            backgroundColor: ['#c98a4b', '#ff4757', '#6f9481', '#425563', '#838d90'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'right', labels: { color: '#eae6dd' } }
+                        },
+                        cutout: '60%'
+                    }
+                });
+            }
+        }
+
+        function renderLogs(events) {
+            const tbody = document.getElementById('logs-body');
+            tbody.innerHTML = '';
+            // reverse to show newest first
+            [...events].reverse().forEach(ev => {
+                tbody.innerHTML += `
+                    <tr>
+                        <td>${formatTime(ev.at)}</td>
+                        <td class="domain-cell" title="${escapeHtml(ev.domain)}">${escapeHtml(ev.domain)}</td>
+                        <td class="source-cell"><span class="event-source" title="${escapeHtml(ev.source)}" style="background: #2a3033; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${escapeHtml(ev.source)}</span></td>
+                    </tr>
+                `;
+            });
+            if (events.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color: #838d90;">No recent activity</td></tr>';
+            }
+        }
+
+        function escapeHtml(value) {
+            return String(value ?? '').replace(/[&<>"']/g, char => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            }[char]));
+        }
+
+        function renderCustomRules(rules) {
+            const tbody = document.getElementById('custom-rules-body');
+            tbody.innerHTML = '';
+            rules.forEach(rule => {
+                const row = document.createElement('tr');
+                const domainCell = document.createElement('td');
+                domainCell.className = 'domain-cell';
+                domainCell.title = rule;
+                domainCell.textContent = rule;
+                const actionCell = document.createElement('td');
+                actionCell.style.textAlign = 'right';
+                const removeButton = document.createElement('button');
+                removeButton.className = 'danger';
+                removeButton.textContent = 'Remove';
+                removeButton.addEventListener('click', () => removeCustomDomain(rule));
+                actionCell.appendChild(removeButton);
+                row.append(domainCell, actionCell);
+                tbody.appendChild(row);
+            });
+            if (rules.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="2" style="text-align:center; color: #838d90;">No custom rules</td></tr>';
+            }
+        }
+
+        // --- Custom Rules Actions ---
+        async function addCustomDomain() {
+            const input = document.getElementById('custom-domain-input');
+            const domain = input.value.trim().toLowerCase();
+            if (!domain) return;
+            
+            const response = await fetch('/custom_blocklist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ domain })
+            });
+            if (!response.ok) {
+                alert(await response.text());
+                return;
+            }
+            input.value = '';
+            fetchDashboardData();
+        }
+
+        async function removeCustomDomain(domain) {
+            const response = await fetch('/custom_blocklist', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ domain })
+            });
+            if (!response.ok) {
+                alert(await response.text());
+                return;
+            }
+            fetchDashboardData();
+        }
+
+        // --- Init and Poll ---
+        fetchDashboardData();
+        setInterval(fetchDashboardData, 3000); // refresh every 3s
+    </script>
+</body>
+</html>
