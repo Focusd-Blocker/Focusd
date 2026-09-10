@@ -20,7 +20,7 @@ import (
 
 const (
 	releaseURL    = "https://api.github.com/repos/Focusd-Blocker/Focusd/releases?per_page=100"
-	manifestURL   = "https://github.com/Focusd-Blocker/Focusd/releases/%s/download/release-manifest.json"
+	manifestURL   = "https://github.com/Focusd-Blocker/Focusd/releases/download/%s/release-manifest.json"
 	checkInterval = 6 * time.Hour
 )
 
