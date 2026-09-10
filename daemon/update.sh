@@ -31,9 +31,27 @@ OLD_HASH=""
 if [ -f "${EXTENSION_DIR}/focusd.xpi" ]; then
     OLD_HASH=$(sha256sum "${EXTENSION_DIR}/focusd.xpi" | cut -d' ' -f1)
 fi
+EXTENSION_TAG="$(
+    curl -fsSL --retry 3 \
+        "https://api.github.com/repos/Focusd-Blocker/Focusd/releases?per_page=100" |
+        python3 -c '
+import json
+import sys
+
+releases = json.load(sys.stdin)
+for release in releases:
+    tag = release.get("tag_name", "")
+    assets = {asset.get("name") for asset in release.get("assets", [])}
+    if tag.startswith("extension-v") or (tag.startswith("v") and "focusd.xpi" in assets):
+        print(tag)
+        break
+else:
+    raise SystemExit("no extension release found")
+'
+)"
 curl -fSL --retry 3 \
     -o "${EXTENSION_DIR}/focusd.xpi" \
-    "https://github.com/Focusd-Blocker/Focusd/releases/latest/download/focusd.xpi"
+    "https://github.com/Focusd-Blocker/Focusd/releases/download/${EXTENSION_TAG}/focusd.xpi"
 NEW_HASH=$(sha256sum "${EXTENSION_DIR}/focusd.xpi" | cut -d' ' -f1)
 
 if [ "$OLD_HASH" != "$NEW_HASH" ]; then

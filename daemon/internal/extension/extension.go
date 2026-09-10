@@ -105,8 +105,16 @@ func fetchLatestRelease() (*releaseInfo, error) {
 	}
 
 	for i := range releases {
-		if strings.HasPrefix(releases[i].TagName, "extension-v") {
+		tag := releases[i].TagName
+		if strings.HasPrefix(tag, "extension-v") {
 			return &releases[i], nil
+		}
+		if strings.HasPrefix(tag, "v") {
+			for _, asset := range releases[i].Assets {
+				if asset.Name == "focusd.xpi" {
+					return &releases[i], nil
+				}
+			}
 		}
 	}
 	return nil, fmt.Errorf("no extension release found")
@@ -175,6 +183,9 @@ func updateOnce() error {
 	}
 
 	version := strings.TrimPrefix(release.TagName, "extension-v")
+	if version == release.TagName {
+		version = strings.TrimPrefix(release.TagName, "v")
+	}
 	if state.Version == version {
 		log.Println("extension: already up to date")
 		return nil
