@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"net/url"
@@ -324,15 +325,16 @@ func saveCustomBlockedList(domains []string) error {
 }
 
 func HandleBlocklist(w http.ResponseWriter, r *http.Request) {
-	domains, err := loadDomainsFromDisk(hostsFilePath())
+	f, err := os.Open(hostsFilePath())
 	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "blocklist not loaded yet", http.StatusServiceUnavailable)
+			return
+		}
 		http.Error(w, "failed to load blocklist", http.StatusInternalServerError)
 		return
 	}
-	if domains == nil {
-		http.Error(w, "blocklist not loaded yet", http.StatusServiceUnavailable)
-		return
-	}
+	defer f.Close()
 
 	custom, err := getCustomBlockedList()
 	if err != nil {
@@ -341,27 +343,82 @@ func HandleBlocklist(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	fmt.Fprintf(w, `{"domains":[`)
+	if _, err := io.WriteString(w, `{"domains":[`); err != nil {
+		return
+	}
 
 	first := true
-	for _, d := range domains {
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		d := strings.TrimSpace(scanner.Text())
+		if d == "" {
+			continue
+		}
 		if !first {
-			w.Write([]byte(","))
+			if _, err := io.WriteString(w, ","); err != nil {
+				return
+			}
 		}
 		first = false
-		b, _ := json.Marshal(d)
-		w.Write(b)
+		if err := json.NewEncoder(w).Encode(d); err != nil {
+			return
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return
 	}
 	for _, d := range custom {
 		if !first {
-			w.Write([]byte(","))
+			if _, err := io.WriteString(w, ","); err != nil {
+				return
+			}
 		}
 		first = false
-		b, _ := json.Marshal(d)
-		w.Write(b)
+		if err := json.NewEncoder(w).Encode(d); err != nil {
+			return
+		}
 	}
 
-	w.Write([]byte(`]}`))
+	_, _ = io.WriteString(w, `]}`)
+}
+
+func HandleBlocklistStream(w http.ResponseWriter, r *http.Request) {
+	f, err := os.Open(hostsFilePath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			http.Error(w, "blocklist not loaded yet", http.StatusServiceUnavailable)
+			return
+		}
+		http.Error(w, "failed to load blocklist", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	custom, err := getCustomBlockedList()
+	if err != nil {
+		http.Error(w, "failed to load custom blocklist", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		domain := strings.TrimSpace(scanner.Text())
+		if domain == "" {
+			continue
+		}
+		if _, err := io.WriteString(w, domain+"\n"); err != nil {
+			return
+		}
+	}
+	if scanner.Err() != nil {
+		return
+	}
+	for _, domain := range custom {
+		if _, err := io.WriteString(w, domain+"\n"); err != nil {
+			return
+		}
+	}
 }
 
 func HandleBlocklistCount(w http.ResponseWriter, r *http.Request) {

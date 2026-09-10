@@ -59,6 +59,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /", stats.HandleDashboard)
 	mux.HandleFunc("GET /blocklist", blocklist.HandleBlocklist)
+	mux.HandleFunc("GET /blocklist/stream", blocklist.HandleBlocklistStream)
 	mux.HandleFunc("GET /blocklist/count", blocklist.HandleBlocklistCount)
 	mux.HandleFunc("GET /stream", blocklist.HandleStream)
 	mux.HandleFunc("GET /custom_blocklist", blocklist.HandleCustomBlocklist)

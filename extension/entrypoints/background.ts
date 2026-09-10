@@ -2,26 +2,50 @@ export default defineBackground(() => {
   let blockedDomains = new Set<string>();
   const DAEMON_URL = "http://127.0.0.1:36287";
 
-  browser.storage.local.get("blocklist").then((res) => {
-    if (Array.isArray(res.blocklist)) {
+  browser.storage.local.remove("blocklist");
+  browser.storage.local.get("blocklistText").then((res) => {
+    if (typeof res.blocklistText === "string") {
       blockedDomains = new Set(
-        res.blocklist.filter((domain): domain is string => typeof domain === "string"),
+        res.blocklistText.split("\n").filter((domain: string) => domain.length > 0),
       );
     }
   });
 
   async function refreshBlocklist() {
     try {
-      const res = await fetch(`${DAEMON_URL}/blocklist`);
+      const res = await fetch(`${DAEMON_URL}/blocklist/stream`);
       if (!res.ok) throw new Error(`status ${res.status}`);
-      const data = await res.json();
-      const domains = Array.isArray(data.domains)
-        ? data.domains.filter(
-            (domain: unknown): domain is string => typeof domain === "string",
-          )
-        : [];
-      blockedDomains = new Set(domains);
-      await browser.storage.local.set({ blocklist: domains });
+      if (!res.body) throw new Error("missing blocklist response body");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      const domainSet = new Set<string>();
+      let storedBlocklist = "";
+      let pending = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+        pending += decoder.decode(value || new Uint8Array(), { stream: !done });
+        const lines = pending.split("\n");
+        pending = lines.pop() || "";
+        for (const line of lines) {
+          const domain = line.trim();
+          if (domain) {
+            domainSet.add(domain);
+            storedBlocklist += `${domain}\n`;
+          }
+        }
+        if (done) break;
+      }
+
+      const finalDomain = pending.trim();
+      if (finalDomain) {
+        domainSet.add(finalDomain);
+        storedBlocklist += `${finalDomain}\n`;
+      }
+
+      blockedDomains = domainSet;
+      await browser.storage.local.set({ blocklistText: storedBlocklist });
     } catch (err) {
       console.error("focusd: failed to refresh blocklist", err);
     }
