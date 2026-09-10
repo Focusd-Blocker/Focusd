@@ -19,8 +19,8 @@ import (
 )
 
 const (
-	releaseURL    = "https://api.github.com/repos/Focusd-Blocker/Focusd/releases/latest"
-	manifestURL   = "https://github.com/Focusd-Blocker/Focusd/releases/latest/download/release-manifest.json"
+	releaseURL    = "https://api.github.com/repos/Focusd-Blocker/Focusd/releases?per_page=100"
+	manifestURL   = "https://github.com/Focusd-Blocker/Focusd/releases/%s/download/release-manifest.json"
 	checkInterval = 6 * time.Hour
 )
 
@@ -64,7 +64,7 @@ func updateOnce(currentVersion string) error {
 	}
 	latest := strings.TrimPrefix(release.TagName, "v")
 
-	manifest, err := fetchManifest()
+	manifest, err := fetchManifest(release.TagName)
 	if err != nil {
 		return fmt.Errorf("fetching release manifest: %w", err)
 	}
@@ -89,7 +89,7 @@ func updateOnce(currentVersion string) error {
 		return fmt.Errorf("locating current executable: %w", err)
 	}
 	tempPath := executable + ".update"
-	if err := downloadAndVerify(assetName, expected.SHA256, tempPath); err != nil {
+	if err := downloadAndVerify(release.TagName, assetName, expected.SHA256, tempPath); err != nil {
 		os.Remove(tempPath)
 		return err
 	}
@@ -130,15 +130,20 @@ func fetchRelease() (*releaseInfo, error) {
 		return nil, fmt.Errorf("GitHub API returned %s", resp.Status)
 	}
 
-	var release releaseInfo
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	var releases []releaseInfo
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
 		return nil, fmt.Errorf("decoding release: %w", err)
 	}
-	return &release, nil
+	for i := range releases {
+		if strings.HasPrefix(releases[i].TagName, "daemon-v") {
+			return &releases[i], nil
+		}
+	}
+	return nil, fmt.Errorf("no daemon release found")
 }
 
-func fetchManifest() (*releaseManifest, error) {
-	resp, err := httpClient.Get(manifestURL)
+func fetchManifest(tag string) (*releaseManifest, error) {
+	resp, err := httpClient.Get(fmt.Sprintf(manifestURL, tag))
 	if err != nil {
 		return nil, err
 	}
@@ -154,8 +159,8 @@ func fetchManifest() (*releaseManifest, error) {
 	return &manifest, nil
 }
 
-func downloadAndVerify(assetName, expectedHash, path string) error {
-	url := "https://github.com/Focusd-Blocker/Focusd/releases/latest/download/" + assetName
+func downloadAndVerify(tag, assetName, expectedHash, path string) error {
+	url := "https://github.com/Focusd-Blocker/Focusd/releases/" + tag + "/download/" + assetName
 	resp, err := httpClient.Get(url)
 	if err != nil {
 		return fmt.Errorf("downloading %s: %w", assetName, err)

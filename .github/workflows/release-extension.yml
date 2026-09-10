@@ -1,0 +1,66 @@
+name: Release extension
+
+on:
+  push:
+    tags:
+      - "extension-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and release Firefox extension
+    runs-on: ubuntu-latest
+    env:
+      FIREFOX_API_KEY: ${{ secrets.FIREFOX_API_KEY }}
+      FIREFOX_API_SECRET: ${{ secrets.FIREFOX_API_SECRET }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate version
+        working-directory: extension
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          tag_version="${GITHUB_REF_NAME#extension-v}"
+          test "$version" = "$tag_version"
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install dependencies
+        working-directory: extension
+        run: bun install --frozen-lockfile
+
+      - name: Compile extension
+        working-directory: extension
+        run: bun run compile
+
+      - name: Build and sign extension
+        working-directory: extension
+        run: |
+          set -euo pipefail
+          test -n "$FIREFOX_API_KEY"
+          test -n "$FIREFOX_API_SECRET"
+          bun run build:firefox
+          bunx --no-install web-ext sign \
+            --source-dir .output/firefox-mv2 \
+            --channel unlisted \
+            --api-key "$FIREFOX_API_KEY" \
+            --api-secret "$FIREFOX_API_SECRET" \
+            --artifacts-dir .output
+          xpi="$(find .output -maxdepth 1 -type f -name '*.xpi' -print -quit)"
+          test -n "$xpi"
+          mkdir -p ../dist
+          cp "$xpi" "../dist/focusd.xpi"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/focusd.xpi \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Focusd extension ${GITHUB_REF_NAME#extension-}" \
+            --generate-notes

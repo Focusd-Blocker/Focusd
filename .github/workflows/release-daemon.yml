@@ -1,0 +1,115 @@
+name: Release daemon
+
+on:
+  push:
+    tags:
+      - "daemon-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    name: Validate daemon version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: version
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < daemon/VERSION)"
+          tag_version="${GITHUB_REF_NAME#daemon-v}"
+          test "$version" = "$tag_version"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build daemon (${{ matrix.os }}-${{ matrix.arch }})
+    needs: version
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows
+            arch: amd64
+            suffix: .exe
+            gui: " -H windowsgui"
+          - os: windows
+            arch: arm64
+            suffix: .exe
+            gui: " -H windowsgui"
+          - os: linux
+            arch: amd64
+            suffix: ""
+            gui: ""
+          - os: linux
+            arch: arm64
+            suffix: ""
+            gui: ""
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon/go.mod
+      - name: Build daemon
+        working-directory: daemon
+        env:
+          GOOS: ${{ matrix.os }}
+          GOARCH: ${{ matrix.arch }}
+          CGO_ENABLED: "0"
+        run: |
+          set -euo pipefail
+          mkdir -p ../dist
+          go build -trimpath \
+            -ldflags="-s -w${{ matrix.gui }} -X main.daemonVersion=${{ needs.version.outputs.version }}" \
+            -o "../dist/focusd-${{ matrix.os }}-${{ matrix.arch }}${{ matrix.suffix }}" .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: daemon-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/focusd-*
+          if-no-files-found: error
+
+  release:
+    name: Publish daemon release
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: daemon-*
+          path: dist
+          merge-multiple: true
+      - name: Generate checksums and manifest
+        working-directory: dist
+        env:
+          DAEMON_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          sha256sum focusd-* > SHA256SUMS.txt
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          files = {}
+          for path in sorted(Path(".").glob("focusd-*")):
+              files[path.name] = {
+                  "name": path.name,
+                  "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+              }
+          Path("release-manifest.json").write_text(json.dumps({
+              "daemon_version": os.environ["DAEMON_VERSION"],
+              "artifacts": files,
+          }, indent=2) + "\n", encoding="utf-8")
+          PY
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Focusd daemon ${GITHUB_REF_NAME#daemon-}" \
+            --generate-notes

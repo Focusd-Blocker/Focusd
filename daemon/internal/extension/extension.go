@@ -12,12 +12,12 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"time"
 )
 
 const (
-	releaseURL    = "https://api.github.com/repos/Focusd-Blocker/Focusd/releases/latest"
-	downloadURL   = "https://github.com/Focusd-Blocker/Focusd/releases/latest/download/focusd.xpi"
+	releaseURL    = "https://api.github.com/repos/Focusd-Blocker/Focusd/releases?per_page=100"
 	checkInterval = 6 * time.Hour
 )
 
@@ -81,35 +81,38 @@ func saveState(s *localState) error {
 	return os.WriteFile(statePath(), data, 0o644)
 }
 
-func fetchLatestRelease() (*releaseInfo, string, error) {
+func fetchLatestRelease() (*releaseInfo, error) {
 	req, err := http.NewRequest("GET", releaseURL, nil)
 	if err != nil {
-		return nil, "", fmt.Errorf("creating request: %w", err)
+		return nil, fmt.Errorf("creating request: %w", err)
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "focusd-extension-updater")
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		return nil, "", fmt.Errorf("fetching release info: %w", err)
+		return nil, fmt.Errorf("fetching release info: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+		return nil, fmt.Errorf("GitHub API returned %d", resp.StatusCode)
 	}
 
-	etag := resp.Header.Get("Etag")
-
-	var info releaseInfo
-	if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
-		return nil, "", fmt.Errorf("decoding release info: %w", err)
+	var releases []releaseInfo
+	if err := json.NewDecoder(resp.Body).Decode(&releases); err != nil {
+		return nil, fmt.Errorf("decoding release info: %w", err)
 	}
 
-	return &info, etag, nil
+	for i := range releases {
+		if strings.HasPrefix(releases[i].TagName, "extension-v") {
+			return &releases[i], nil
+		}
+	}
+	return nil, fmt.Errorf("no extension release found")
 }
 
-func downloadXPI() (string, error) {
+func downloadXPI(downloadURL string) (string, error) {
 	dir := extensionDir()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", fmt.Errorf("creating extension dir: %w", err)
@@ -166,23 +169,35 @@ func updateOnce() error {
 		return fmt.Errorf("loading state: %w", err)
 	}
 
-	_, etag, err := fetchLatestRelease()
+	release, err := fetchLatestRelease()
 	if err != nil {
 		return fmt.Errorf("checking release: %w", err)
 	}
 
-	if etag != "" && etag == state.ETag {
+	version := strings.TrimPrefix(release.TagName, "extension-v")
+	if state.Version == version {
 		log.Println("extension: already up to date")
 		return nil
 	}
 
 	log.Println("extension: new version detected, downloading...")
-	sum, err := downloadXPI()
+	downloadURL := ""
+	for _, asset := range release.Assets {
+		if asset.Name == "focusd.xpi" {
+			downloadURL = asset.BrowserDownloadURL
+			break
+		}
+	}
+	if downloadURL == "" {
+		return fmt.Errorf("extension release has no focusd.xpi asset")
+	}
+	sum, err := downloadXPI(downloadURL)
 	if err != nil {
 		return fmt.Errorf("downloading extension: %w", err)
 	}
 
-	state.ETag = etag
+	state.ETag = ""
+	state.Version = version
 	state.SHA256 = sum
 	if err := saveState(state); err != nil {
 		return fmt.Errorf("saving state: %w", err)
@@ -225,6 +240,6 @@ func EnsureDownloaded() error {
 		return nil
 	}
 	log.Println("extension: downloading xpi for the first time...")
-	_, err = downloadXPI()
+	err = updateOnce()
 	return err
 }
